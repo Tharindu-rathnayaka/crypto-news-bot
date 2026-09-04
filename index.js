@@ -67,17 +67,19 @@ Time (event feed, ET): ${event.date}`;
   return text;
 }
 
-function formatTimeET(dateStr) {
-  // Feed times are ET (US Eastern). Built manually (not via toLocaleString) to guarantee
-  // plain ASCII output — locale formatting can silently insert Unicode spacing characters
-  // that break HTTP headers.
+function formatTimeSL(dateStr) {
+  // Converts the event's absolute UTC instant to Sri Lanka time (UTC+5:30, no DST).
+  // Built manually (not via toLocaleString) to guarantee plain ASCII output — locale
+  // formatting can silently insert Unicode spacing characters that break HTTP headers.
   const d = new Date(dateStr);
-  let hours = d.getUTCHours() - 5; // rough ET offset (UTC-5); DST not accounted for
-  if (hours < 0) hours += 24;
+  const totalMinutesUTC = d.getUTCHours() * 60 + d.getUTCMinutes();
+  const SL_OFFSET_MINUTES = 5 * 60 + 30;
+  const wrapped = ((totalMinutesUTC + SL_OFFSET_MINUTES) % 1440 + 1440) % 1440;
+  const hours = Math.floor(wrapped / 60);
+  const minutes = wrapped % 60;
   const ampm = hours >= 12 ? "PM" : "AM";
   const displayHour = hours % 12 === 0 ? 12 : hours % 12;
-  const minutes = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${displayHour}:${minutes} ${ampm} ET`;
+  return `${displayHour}:${String(minutes).padStart(2, "0")} ${ampm} SL`;
 }
 
 function toAsciiSafeHeader(str) {
@@ -131,7 +133,7 @@ async function main() {
 
     // Note: ntfy headers (Title, Tags) must be plain ASCII — emoji go in the body instead,
     // where they render fine, since HTTP header values can't contain non-ASCII characters.
-    const title = `${event.title} (${event.country}) - ${formatTimeET(event.date)}`;
+    const title = `${event.title} (${event.country}) - ${formatTimeSL(event.date)}`;
     const message = `${meta.emoji} Impact: ${event.impact}\nForecast: ${event.forecast || "N/A"} | Previous: ${event.previous || "N/A"}\n\n${analysis}`;
 
     await sendNtfyMessage({ title, message, priority: meta.priority, tags: meta.tags });

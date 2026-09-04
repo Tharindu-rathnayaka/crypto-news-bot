@@ -10,12 +10,13 @@ const RELEVANT_CURRENCIES = ["USD", "CNY", "EUR"];
 // Only alert on Medium/High impact. Low-impact prints are noise.
 const RELEVANT_IMPACT = ["Medium", "High"];
 
+// How far ahead to look for events, in hours. Keep this matched to your cron frequency
+// (e.g. if the workflow runs every 3 hours, use 3 here) so each event is only picked up
+// by one run and you don't get the same notification repeated on every run.
+const WINDOW_HOURS = 3;
+
 const NTFY_TOPIC = process.env.NTFY_TOPIC; // the random topic name you picked in the ntfy app
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-}
 
 async function fetchCalendar() {
   const res = await fetch(FF_FEED_URL);
@@ -23,14 +24,16 @@ async function fetchCalendar() {
   return res.json();
 }
 
-function filterTodaysRelevantEvents(events) {
-  const today = todayISO();
+function filterUpcomingRelevantEvents(events) {
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + WINDOW_HOURS * 60 * 60 * 1000);
+
   return events.filter((e) => {
-    const eventDate = (e.date || "").slice(0, 10);
-    const isToday = eventDate === today;
+    const eventTime = new Date(e.date);
+    const isUpcoming = eventTime >= now && eventTime < windowEnd;
     const relevantCurrency = RELEVANT_CURRENCIES.includes(e.country);
     const relevantImpact = RELEVANT_IMPACT.includes(e.impact);
-    return isToday && relevantCurrency && relevantImpact;
+    return isUpcoming && relevantCurrency && relevantImpact;
   });
 }
 
@@ -119,15 +122,15 @@ async function main() {
   }
 
   const allEvents = await fetchCalendar();
-  const todaysEvents = filterTodaysRelevantEvents(allEvents);
+  const upcomingEvents = filterUpcomingRelevantEvents(allEvents);
 
-  if (todaysEvents.length === 0) {
-    console.log("No relevant crypto-moving events today. Skipping notifications.");
+  if (upcomingEvents.length === 0) {
+    console.log(`No relevant crypto-moving events in the next ${WINDOW_HOURS}h. Skipping notifications.`);
     return;
   }
 
   // One push notification per event — easier to read on a lock screen than one giant digest.
-  for (const event of todaysEvents) {
+  for (const event of upcomingEvents) {
     const analysis = await getAiAnalysis(event);
     const meta = impactMeta(event.impact);
 
@@ -139,7 +142,7 @@ async function main() {
     await sendNtfyMessage({ title, message, priority: meta.priority, tags: meta.tags });
   }
 
-  console.log(`Sent ${todaysEvents.length} push notifications via ntfy.`);
+  console.log(`Sent ${upcomingEvents.length} push notifications via ntfy.`);
 }
 
 main().catch((err) => {

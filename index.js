@@ -47,7 +47,7 @@ Previous: ${event.previous || "N/A"}
 Time (event feed, ET): ${event.date}`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -57,10 +57,14 @@ Time (event feed, ET): ${event.date}`;
     }
   );
   const data = await res.json();
-  return (
-    data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-    "AI analysis unavailable for this event."
-  );
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  if (!text) {
+    // Log the full raw response so the real reason (bad key, quota, blocked model, etc.)
+    // shows up in the GitHub Actions log instead of a silent generic fallback.
+    console.error("Gemini API did not return text. Raw response:", JSON.stringify(data));
+    return "AI analysis unavailable for this event.";
+  }
+  return text;
 }
 
 function formatTimeET(dateStr) {

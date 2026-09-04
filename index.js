@@ -64,13 +64,22 @@ Time (event feed, ET): ${event.date}`;
 }
 
 function formatTimeET(dateStr) {
-  // Feed times are ET (US Eastern). Just display as-is plus a note; adjust to your timezone if needed.
+  // Feed times are ET (US Eastern). Built manually (not via toLocaleString) to guarantee
+  // plain ASCII output — locale formatting can silently insert Unicode spacing characters
+  // that break HTTP headers.
   const d = new Date(dateStr);
-  return d.toLocaleString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  let hours = d.getUTCHours() - 5; // rough ET offset (UTC-5); DST not accounted for
+  if (hours < 0) hours += 24;
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 === 0 ? 12 : hours % 12;
+  const minutes = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${displayHour}:${minutes} ${ampm} ET`;
+}
+
+function toAsciiSafeHeader(str) {
+  // HTTP headers must be plain ASCII (ByteString). Strip anything outside that range
+  // so unexpected characters from the data feed can never crash the request again.
+  return String(str).replace(/[^\x00-\xFF]/g, "");
 }
 
 async function sendNtfyMessage({ title, message, priority, tags }) {
@@ -79,11 +88,11 @@ async function sendNtfyMessage({ title, message, priority, tags }) {
     method: "POST",
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      Title: title,
+      Title: toAsciiSafeHeader(title),
       Priority: String(priority),
-      Tags: tags,
+      Tags: toAsciiSafeHeader(tags),
     },
-    body: message,
+    body: message, // body can safely contain emoji / any UTF-8 text
   });
   if (!res.ok) {
     const err = await res.text();
@@ -116,8 +125,10 @@ async function main() {
     const analysis = await getAiAnalysis(event);
     const meta = impactMeta(event.impact);
 
-    const title = `${meta.emoji} ${event.title} (${event.country}) — ${formatTimeET(event.date)}`;
-    const message = `Forecast: ${event.forecast || "N/A"} | Previous: ${event.previous || "N/A"}\n\n${analysis}`;
+    // Note: ntfy headers (Title, Tags) must be plain ASCII — emoji go in the body instead,
+    // where they render fine, since HTTP header values can't contain non-ASCII characters.
+    const title = `${event.title} (${event.country}) - ${formatTimeET(event.date)}`;
+    const message = `${meta.emoji} Impact: ${event.impact}\nForecast: ${event.forecast || "N/A"} | Previous: ${event.previous || "N/A"}\n\n${analysis}`;
 
     await sendNtfyMessage({ title, message, priority: meta.priority, tags: meta.tags });
   }

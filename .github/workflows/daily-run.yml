@@ -2,8 +2,9 @@ name: Daily Crypto News Digest
 
 on:
   schedule:
-    # Runs at 01:00 UTC = 06:30 Sri Lanka time (UTC+5:30). Adjust as needed.
-    - cron: "0 1 * * *"
+    # Runs every 3 hours (00:00, 03:00, 06:00 UTC etc.)
+    # = 5:30 AM, 8:30 AM, 11:30 AM, 2:30 PM, 5:30 PM, 8:30 PM, 11:30 PM, 2:30 AM Sri Lanka time.
+    - cron: "0 */3 * * *"
   workflow_dispatch: {} # lets you manually trigger a run from the Actions tab
 
 jobs:

@@ -1,6 +1,8 @@
 {
   "before": {
-    "USD|Unemployment Claims|2026-09-24T08:30:00-04:00": "2026-09-24T08:30:00-04:00"
+    "USD|Unemployment Claims|2026-09-24T08:30:00-04:00": "2026-09-24T08:30:00-04:00",
+    "USD|Revised UoM Consumer Sentiment|2026-09-25T10:00:00-04:00": "2026-09-25T10:00:00-04:00",
+    "USD|Revised UoM Inflation Expectations|2026-09-25T10:00:00-04:00": "2026-09-25T10:00:00-04:00"
   },
   "after": {}
 }
